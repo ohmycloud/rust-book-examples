@@ -19,7 +19,29 @@ fn append_number_to_file(n: i32) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> io::Result<()> {
+struct WriteCoroutine {
+    pub file_handle: File,
+}
+
+impl WriteCoroutine {
+    fn new(path: &str) -> io::Result<Self> {
+        let file_handle = OpenOptions::new().create(true).append(true).open(path)?;
+        Ok(Self { file_handle })
+    }
+}
+
+impl Coroutine<i32> for WriteCoroutine {
+    type Yield = ();
+
+    type Return = ();
+
+    fn resume(mut self: Pin<&mut Self>, arg: i32) -> CoroutineState<Self::Yield, Self::Return> {
+        writeln!(self.file_handle, "{}", arg).unwrap();
+        CoroutineState::Yielded(())
+    }
+}
+
+fn normal_thread() {
     let mut rng = rand::thread_rng();
     let numbers: Vec<i32> = (0..200000).map(|_| rng.r#gen()).collect();
 
@@ -31,6 +53,23 @@ fn main() -> io::Result<()> {
     }
     let duration = start.elapsed();
     println!("Time elapsed in file opeartions is: {:?}", duration);
+}
 
+fn with_coroutine() -> Result<(), Box<dyn std::error::Error>> {
+    let mut coroutine = WriteCoroutine::new("numbers-coroutines.txt")?;
+    let mut rng = rand::thread_rng();
+    let numbers: Vec<i32> = (0..200000).map(|_| rng.r#gen()).collect();
+
+    let start = Instant::now();
+    for &number in &numbers {
+        Pin::new(&mut coroutine).resume(number);
+    }
+    let duration = start.elapsed();
+    println!("Time elapsed in file opeartions is: {:?}", duration);
+    Ok(())
+}
+
+fn main() -> io::Result<()> {
+    with_coroutine();
     Ok(())
 }
