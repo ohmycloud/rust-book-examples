@@ -3,6 +3,7 @@ use std::{
     collections::VecDeque,
     ops::{Coroutine, CoroutineState},
     pin::Pin,
+    task::{Context, Poll},
     time::Instant,
 };
 
@@ -57,6 +58,20 @@ impl Coroutine<()> for SleepCoroutine {
             CoroutineState::Complete(())
         } else {
             CoroutineState::Yielded(())
+        }
+    }
+}
+
+impl Future for SleepCoroutine {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match Pin::new(&mut self).resume(()) {
+            CoroutineState::Yielded(_) => {
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            }
+            CoroutineState::Complete(_) => Poll::Ready(()),
         }
     }
 }
