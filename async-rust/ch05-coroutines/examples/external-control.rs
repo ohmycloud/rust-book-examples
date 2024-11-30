@@ -3,6 +3,7 @@ use rand::Rng;
 use std::{
     ops::{Coroutine, CoroutineState},
     pin::Pin,
+    task::{Context, Poll},
     time::Duration,
 };
 
@@ -38,6 +39,45 @@ impl Coroutine<()> for RandCoRoutine {
     }
 }
 
+struct NestingFuture {
+    inner: Pin<Box<dyn Future<Output = ()> + Send>>,
+}
+
+impl Future for NestingFuture {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.inner.as_mut().poll(cx) {
+            Poll::Ready(_) => Poll::Ready(()),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+fn send_coroutines_over_threads() {
+    let (tx, rx) = std::sync::mpsc::channel::<RandCoRoutine>();
+    let _thread = std::thread::spawn(move || {
+        loop {
+            let mut coroutine = match rx.recv() {
+                Ok(coroutine) => coroutine,
+                Err(_) => break,
+            };
+            match Pin::new(&mut coroutine).resume(()) {
+                CoroutineState::Yielded(result) => {
+                    println!("Coroutine yielded: {}", result);
+                }
+                CoroutineState::Complete(_) => {
+                    panic!("Coroutine should not complete");
+                }
+            }
+        }
+    });
+    std::thread::sleep(Duration::from_secs(1));
+    tx.send(RandCoRoutine::new()).unwrap();
+    tx.send(RandCoRoutine::new()).unwrap();
+    std::thread::sleep(Duration::from_secs(1));
+}
+
 fn main() {
     let mut coroutines = Vec::new();
     for _ in 0..10 {
@@ -67,4 +107,6 @@ fn main() {
         }
     }
     println!("Total: {}", total);
+
+    send_coroutines_over_threads();
 }
