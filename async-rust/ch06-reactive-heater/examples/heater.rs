@@ -1,8 +1,11 @@
 use core::sync::atomic::Ordering;
+use device_query::{DeviceEvents, DeviceState};
 use std::future::Future;
+use std::io::{self, Write};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicI16};
 use std::task::Context;
 use std::task::Poll;
@@ -113,8 +116,20 @@ impl Future for HeatLossFuture {
     }
 }
 
+fn perform_operation_with_callback<F>(callback: F)
+where
+    F: Fn(i32),
+{
+    let result = 42;
+    callback(result);
+}
+
 #[tokio::main]
 async fn main() {
+    let my_callback = |result: i32| {
+        println!("The result is: {}", result);
+    };
+    perform_operation_with_callback(my_callback);
     let display = tokio::spawn(async {
         DisplayFuture::new().await;
     });
