@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::future::Future;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -21,6 +22,24 @@ static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
         })
         .thread_name("our custom runtime A")
         .thread_stack_size(3 * 1024 * 1024)
+        .enable_time()
+        .build()
+        .unwrap()
+});
+
+static HIGH_PRIORITY: LazyLock<Runtime> = LazyLock::new(|| {
+    Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("High Priority Runtime")
+        .enable_time()
+        .build()
+        .unwrap()
+});
+
+static LOW_PRIORITY: LazyLock<Runtime> = LazyLock::new(|| {
+    Builder::new_multi_thread()
+        .worker_threads(1)
+        .thread_name("Low Priority Runtime")
         .enable_time()
         .build()
         .unwrap()
