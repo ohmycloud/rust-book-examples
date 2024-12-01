@@ -3,6 +3,6 @@ members = [
     "ch01-introduction-to-async",
     "ch02-basic-async-rust",
     "ch05-coroutines",
-    "ch06-reactive-heater",
+    "ch06-reactive-heater", "ch07-custom-tokio",
 ]
 resolver = "2"
