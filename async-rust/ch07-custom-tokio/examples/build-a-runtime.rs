@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::runtime::{Builder, Runtime};
 use tokio::task::JoinHandle;
+use tokio::task::LocalSet;
 
 static RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
     Builder::new_multi_thread()
@@ -58,6 +59,19 @@ async fn sleep_example() -> i32 {
     tokio::time::sleep(Duration::from_secs(2)).await;
     println!("done sleeping");
     20
+}
+
+thread_local! {
+    pub static COUNTER: RefCell<u32> = RefCell::new(1);
+}
+
+async fn something(number: u32) -> u32 {
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    COUNTER.with(|counter| {
+        *counter.borrow_mut() += 1;
+        println!("Counter: {} for: {}", *counter.borrow(), number);
+    });
+    number
 }
 
 fn main() {
