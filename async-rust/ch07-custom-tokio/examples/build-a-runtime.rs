@@ -74,12 +74,37 @@ async fn something(number: u32) -> u32 {
     number
 }
 
-fn main() {
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    /*
     let handle = spawn_task(sleep_example());
     println!("spawned task");
     println!("task status: {}", handle.is_finished());
     std::thread::sleep(Duration::from_secs(3));
     println!("task status: {}", handle.is_finished());
     let result = RUNTIME.block_on(handle).unwrap();
-    println!("task result: {}", result);
+    println!("task result: {}", result);*/
+
+    let pool = LocalSet::new();
+    let one = pool.spawn_local(async {
+        println!("one");
+        something(1).await
+    });
+    let two = pool.spawn_local(async {
+        println!("two");
+        something(2).await
+    });
+    let three = pool.spawn_local(async {
+        println!("three");
+        something(3).await
+    });
+    pool.await;
+
+    let result = async {
+        let one = one.await.unwrap();
+        let two = two.await.unwrap();
+        let three = three.await.unwrap();
+        one + two + three
+    };
+    println!("result: {}", result.await);
 }
