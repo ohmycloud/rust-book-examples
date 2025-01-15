@@ -69,7 +69,13 @@ async fn main() {
     });
     tx.send(()).await.unwrap();
 
-    let outcome = task_handle.await.unwrap();
-    println!("Task completed with outcome: {}", outcome);
-    trigger_task.await.unwrap();
+    // let outcome = task_handle.await.unwrap();
+    // println!("Task completed with outcome: {}", outcome);
+    // trigger_task.await.unwrap();
+    let _ = tokio::join!(task_handle, trigger_task);
 }
+
+// Output:
+// Polling the future
+// spawning trigger task
+// Polling the future
