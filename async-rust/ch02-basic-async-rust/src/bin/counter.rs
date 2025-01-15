@@ -29,8 +29,8 @@ impl Future for CounterFuture {
 async fn main() {
     let counter_one = CounterFuture { count: 0 };
     let counter_two = CounterFuture { count: 0 };
-    let handle_one: JoinHandle<u32> = tokio::task::spawn(async move { counter_one.await });
 
+    let handle_one: JoinHandle<u32> = tokio::task::spawn(async move { counter_one.await });
     let handle_two: JoinHandle<u32> = tokio::task::spawn(async move { counter_two.await });
-    tokio::join!(handle_one, handle_two);
+    let _ = tokio::join!(handle_one, handle_two);
 }
