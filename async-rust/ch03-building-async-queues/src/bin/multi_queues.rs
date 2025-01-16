@@ -1,4 +1,5 @@
 use async_task::{Runnable, Task};
+use flume::{Receiver, Sender};
 use futures_lite::future;
 use std::pin::Pin;
 use std::sync::LazyLock;
@@ -6,6 +7,11 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use std::time::Instant;
 use std::{future::Future, panic::catch_unwind, thread};
+
+static HIGH_CHANNEL: LazyLock<(Sender<Runnable>, Receiver<Runnable>)> =
+    LazyLock::new(|| flume::unbounded::<Runnable>());
+static LOW_CHANNEL: LazyLock<(Sender<Runnable>, Receiver<Runnable>)> =
+    LazyLock::new(|| flume::unbounded::<Runnable>());
 
 #[derive(Debug, Clone, Copy)]
 enum FutureType {
@@ -25,52 +31,68 @@ where
     F: Future<Output = T> + Send + 'static + FutureOrderLabel,
     T: Send + 'static,
 {
-    static HIGH_QUEUE: LazyLock<flume::Sender<Runnable>> = LazyLock::new(|| {
-        // Create a channel
-        let (tx, rx) = flume::unbounded::<Runnable>();
-
+    static HIGH_QUEUE: LazyLock<Sender<Runnable>> = LazyLock::new(|| {
         // Have multi threads waiting for tasks to be send to that thread
         // to be processed
         for _ in 0..2 {
-            let rx = rx.clone();
+            // Create channels
+            let high_receiver = HIGH_CHANNEL.1.clone();
+            let low_receiver = LOW_CHANNEL.1.clone();
 
             thread::spawn(move || {
-                // check if reveived a Runnable
-                while let Ok(runnable) = rx.recv() {
-                    println!("runnable accepted");
-                    // catches any error
-                    let _ = catch_unwind(|| runnable.run());
+                loop {
+                    match high_receiver.try_recv() {
+                        Ok(runnable) => {
+                            let _ = catch_unwind(|| runnable.run());
+                        }
+                        Err(_) => match low_receiver.try_recv() {
+                            Ok(runnable) => {
+                                let _ = catch_unwind(|| runnable.run());
+                            }
+                            Err(_) => {
+                                thread::sleep(Duration::from_millis(100));
+                            }
+                        },
+                    }
                 }
             });
         }
 
         // return the transmitter channel
         // so we can send runnable to our thread
-        tx
+        HIGH_CHANNEL.0.clone()
     });
 
-    static LOW_QUEUE: LazyLock<flume::Sender<Runnable>> = LazyLock::new(|| {
-        // Create a channel
-        let (tx, rx) = flume::unbounded::<Runnable>();
-
-        // Have multi threads waiting for tasks to be send to that thread
+    static LOW_QUEUE: LazyLock<Sender<Runnable>> = LazyLock::new(|| {
+        // Have only one thread waiting for tasks to be send to that thread
         // to be processed
         for _ in 0..1 {
-            let rx = rx.clone();
+            // Create channels
+            let high_receiver = HIGH_CHANNEL.1.clone();
+            let low_receiver = LOW_CHANNEL.1.clone();
 
             thread::spawn(move || {
-                // check if reveived a Runnable
-                while let Ok(runnable) = rx.recv() {
-                    println!("runnable accepted");
-                    // catches any error
-                    let _ = catch_unwind(|| runnable.run());
+                loop {
+                    match high_receiver.try_recv() {
+                        Ok(runnable) => {
+                            let _ = catch_unwind(|| runnable.run());
+                        }
+                        Err(_) => match low_receiver.try_recv() {
+                            Ok(runnable) => {
+                                let _ = catch_unwind(|| runnable.run());
+                            }
+                            Err(_) => {
+                                thread::sleep(Duration::from_millis(100));
+                            }
+                        },
+                    }
                 }
             });
         }
 
         // return the transmitter channel
         // so we can send runnable to our thread
-        tx
+        LOW_CHANNEL.0.clone()
     });
 
     let schedule = match future.get_order() {
