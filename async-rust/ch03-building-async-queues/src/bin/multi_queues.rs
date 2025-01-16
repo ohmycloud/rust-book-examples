@@ -117,6 +117,31 @@ macro_rules! spawn_task {
     };
 }
 
+macro_rules! join {
+    ($($future:expr),*) => {
+        {
+            let mut results = Vec::new();
+            $(
+                results.push(future::block_on($future));
+            )*
+            results
+        }
+    };
+}
+
+macro_rules! try_join {
+    ($($future:expr),*) => {
+        {
+            let mut results = Vec::new();
+            $(
+                let result = catch_unwind(|| future::block_on($future));
+                results.push(result);
+            )*
+            results
+        }
+    };
+}
+
 struct CounterFuture {
     count: u32,
 }
@@ -192,9 +217,11 @@ fn main() {
 
     std::thread::sleep(Duration::from_secs(5));
     println!("before the block");
-    future::block_on(task_one);
-    future::block_on(task_two);
+
+    let outcome_one: Vec<u32> = join!(task_one, task_two);
+    println!("{:?}", outcome_one);
     future::block_on(task_three);
-    future::block_on(task_four);
-    future::block_on(task_five);
+
+    let outcome_two: Vec<Result<(), _>> = try_join!(task_four, task_five);
+    println!("{:?}", outcome_two);
 }
