@@ -19,16 +19,12 @@ enum FutureType {
     Low,
 }
 
-trait FutureOrderLabel: Future {
-    fn get_order(&self) -> FutureType;
-}
-
 // We pass a future into the function
 // The function then converts the future into a task
 // and puts the task on the queue to be executed.
-fn spawn_task<F, T>(future: F) -> Task<T>
+fn spawn_task<F, T>(future: F, order: FutureType) -> Task<T>
 where
-    F: Future<Output = T> + Send + 'static + FutureOrderLabel,
+    F: Future<Output = T> + Send + 'static,
     T: Send + 'static,
 {
     static HIGH_QUEUE: LazyLock<Sender<Runnable>> = LazyLock::new(|| {
@@ -95,7 +91,7 @@ where
         LOW_CHANNEL.0.clone()
     });
 
-    let schedule = match future.get_order() {
+    let schedule = match order {
         FutureType::High => |runnable| HIGH_QUEUE.send(runnable).unwrap(),
         FutureType::Low => |runnable| LOW_QUEUE.send(runnable).unwrap(),
     };
@@ -112,9 +108,17 @@ where
     return task;
 }
 
+macro_rules! spawn_task {
+    ($future:expr) => {
+        spawn_task!($future, FutureType::Low)
+    };
+    ($future:expr, $order:expr) => {
+        spawn_task($future, $order)
+    };
+}
+
 struct CounterFuture {
     count: u32,
-    order: FutureType,
 }
 
 impl Future for CounterFuture {
@@ -133,12 +137,6 @@ impl Future for CounterFuture {
     }
 }
 
-impl FutureOrderLabel for CounterFuture {
-    fn get_order(&self) -> FutureType {
-        self.order
-    }
-}
-
 async fn async_fn() {
     std::thread::sleep(Duration::from_secs(1));
     println!("async fn");
@@ -147,15 +145,13 @@ async fn async_fn() {
 struct AsyncSleep {
     start_time: Instant,
     duration: Duration,
-    order: FutureType,
 }
 
 impl AsyncSleep {
-    fn new(duration: Duration, order: FutureType) -> Self {
+    fn new(duration: Duration) -> Self {
         Self {
             start_time: Instant::now(),
             duration,
-            order,
         }
     }
 }
@@ -175,37 +171,25 @@ impl Future for AsyncSleep {
     }
 }
 
-impl FutureOrderLabel for AsyncSleep {
-    fn get_order(&self) -> FutureType {
-        self.order
-    }
-}
-
 fn main() {
-    let future_one = CounterFuture {
-        count: 0,
-        order: FutureType::High,
-    };
-    let future_two = CounterFuture {
-        count: 0,
-        order: FutureType::Low,
-    };
-    let future_three = AsyncSleep::new(Duration::from_secs(5), FutureType::Low);
+    let future_one = CounterFuture { count: 0 };
+    let future_two = CounterFuture { count: 0 };
+    let future_three = AsyncSleep::new(Duration::from_secs(5));
 
-    let task_one = spawn_task(future_one);
-    let task_two = spawn_task(future_two);
-    let task_three = spawn_task(future_three);
-    // let task_four = spawn_task(async {
-    //     async_fn().await;
-    //     async_fn().await;
-    //     async_fn().await;
-    //     async_fn().await;
-    // });
+    let task_one = spawn_task!(future_one);
+    let task_two = spawn_task!(future_two);
+    let task_three = spawn_task!(future_three);
+    let task_four = spawn_task!(async {
+        async_fn().await;
+        async_fn().await;
+        async_fn().await;
+        async_fn().await;
+    });
 
     std::thread::sleep(Duration::from_secs(5));
     println!("before the block");
     future::block_on(task_one);
     future::block_on(task_two);
     future::block_on(task_three);
-    // future::block_on(task_four)
+    future::block_on(task_four);
 }
