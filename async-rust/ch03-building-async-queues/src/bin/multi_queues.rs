@@ -176,15 +176,19 @@ fn main() {
     let future_two = CounterFuture { count: 0 };
     let future_three = AsyncSleep::new(Duration::from_secs(5));
 
-    let task_one = spawn_task!(future_one);
+    let task_one = spawn_task!(future_one, FutureType::High);
     let task_two = spawn_task!(future_two);
     let task_three = spawn_task!(future_three);
-    let task_four = spawn_task!(async {
-        async_fn().await;
-        async_fn().await;
-        async_fn().await;
-        async_fn().await;
-    });
+    let task_four = spawn_task!(
+        async {
+            async_fn().await;
+            async_fn().await;
+            async_fn().await;
+            async_fn().await;
+        },
+        FutureType::High
+    );
+    let task_five = spawn_task!(async_fn());
 
     std::thread::sleep(Duration::from_secs(5));
     println!("before the block");
@@ -192,4 +196,5 @@ fn main() {
     future::block_on(task_two);
     future::block_on(task_three);
     future::block_on(task_four);
+    future::block_on(task_five);
 }
