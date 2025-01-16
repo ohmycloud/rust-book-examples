@@ -1,6 +1,5 @@
 use async_task::{Runnable, Task};
 use futures_lite::future;
-use std::future::{Pending, Ready};
 use std::pin::Pin;
 use std::sync::LazyLock;
 use std::task::{Context, Poll};
@@ -107,10 +106,12 @@ impl Future for AsyncSleep {
 fn main() {
     let future_one = CounterFuture { count: 0 };
     let future_two = CounterFuture { count: 0 };
+    let future_three = AsyncSleep::new(Duration::from_secs(5));
 
     let task_one = spawn_task(future_one);
     let task_two = spawn_task(future_two);
-    let task_third = spawn_task(async {
+    let task_three = spawn_task(future_three);
+    let task_four = spawn_task(async {
         async_fn().await;
         async_fn().await;
         async_fn().await;
@@ -121,5 +122,6 @@ fn main() {
     println!("before the block");
     future::block_on(task_one);
     future::block_on(task_two);
-    future::block_on(task_third);
+    future::block_on(task_three);
+    future::block_on(task_four)
 }
