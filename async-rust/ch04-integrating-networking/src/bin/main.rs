@@ -324,6 +324,67 @@ impl hyper::service::Service<Uri> for CustomConnector {
     }
 }
 
+impl tokio::io::AsyncRead for CustomStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match &mut *self {
+            CustomStream::Plain(s) => {
+                Pin::new(s)
+                    .poll_read(cx, buf.initialize_unfilled())
+                    .map_ok(|size| {
+                        buf.advance(size);
+                    })
+            }
+            CustomStream::Tls(s) => {
+                Pin::new(s)
+                    .poll_read(cx, buf.initialize_unfilled())
+                    .map_ok(|size| {
+                        buf.advance(size);
+                    })
+            }
+        }
+    }
+}
+
+impl tokio::io::AsyncWrite for CustomStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        match &mut *self {
+            CustomStream::Plain(s) => Pin::new(s).poll_write(cx, buf),
+            CustomStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        match &mut *self {
+            CustomStream::Plain(s) => Pin::new(s).poll_flush(cx),
+            CustomStream::Tls(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        match &mut *self {
+            CustomStream::Plain(s) => {
+                s.get_ref().shutdown(std::net::Shutdown::Write)?;
+                Poll::Ready(Ok(()))
+            }
+            CustomStream::Tls(s) => Pin::new(s).poll_close(cx),
+        }
+    }
+}
+
 fn main() {
     let future_one = CounterFuture { count: 0 };
     let future_two = CounterFuture { count: 0 };
