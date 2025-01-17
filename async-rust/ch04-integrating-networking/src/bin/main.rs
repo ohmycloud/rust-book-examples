@@ -5,8 +5,12 @@ use bytes::Bytes;
 use flume::{Receiver, Sender};
 use futures_lite::future;
 use http::Uri;
+use http_body_util::BodyExt;
 use http_body_util::Empty;
-use hyper::Request;
+use http_body_util::Full;
+use hyper::body::Incoming;
+use hyper::{Request, Response};
+use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioIo;
 use smol::{Async, io, prelude::*};
 use std::net::TcpStream;
@@ -17,6 +21,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use std::time::Instant;
 use std::{future::Future, panic::catch_unwind, thread};
+use tower::Service;
 
 static HIGH_CHANNEL: LazyLock<(Sender<Runnable>, Receiver<Runnable>)> =
     LazyLock::new(|| flume::unbounded::<Runnable>());
@@ -260,6 +265,7 @@ impl Future for BackgroundProcess {
     }
 }
 
+#[derive(Clone)]
 struct CustomExecutor;
 
 impl<F> hyper::rt::Executor<F> for CustomExecutor
@@ -385,7 +391,99 @@ impl tokio::io::AsyncWrite for CustomStream {
     }
 }
 
-fn main() {
+impl hyper::rt::Read for CustomStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: hyper::rt::ReadBufCursor<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl hyper::rt::Write for CustomStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<std::result::Result<usize, std::io::Error>> {
+        Poll::Pending
+    }
+
+    fn poll_flush(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+
+    fn poll_shutdown(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), std::io::Error>> {
+        Poll::Pending
+    }
+}
+
+impl hyper_util::client::legacy::connect::Connection for CustomStream {
+    fn connected(&self) -> hyper_util::client::legacy::connect::Connected {
+        hyper_util::client::legacy::connect::Connected::new()
+    }
+}
+
+impl Service<Uri> for CustomConnector {
+    type Response = CustomStream;
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, uri: Uri) -> Self::Future {
+        Box::pin(async move {
+            let host = uri.host().context("cannot parse host")?;
+            match uri.scheme_str() {
+                Some("http") => {
+                    let socket_addr = {
+                        let host = host.to_string();
+                        let port = uri.port_u16().unwrap_or(80);
+                        smol::unblock(move || (host.as_str(), port).to_socket_addrs())
+                            .await?
+                            .next()
+                            .context("cannot resolve address")?
+                    };
+                    let stream = Async::<TcpStream>::connect(socket_addr).await?;
+                    Ok(CustomStream::Plain(stream))
+                }
+                Some("https") => {
+                    let socket_addr = {
+                        let host = host.to_string();
+                        let port = uri.port_u16().unwrap_or(443);
+                        smol::unblock(move || (host.as_str(), port).to_socket_addrs())
+                            .await?
+                            .next()
+                            .context("cannot resolve address")?
+                    };
+                    let stream = Async::<TcpStream>::connect(socket_addr).await?;
+                    let stream = async_native_tls::connect(host, stream).await?;
+                    Ok(CustomStream::Tls(stream))
+                }
+                schema => bail!("unsupported schema: {:?}", schema),
+            }
+        })
+    }
+}
+
+async fn fetch(req: Request<Full<Bytes>>) -> Result<Response<Incoming>> {
+    let client = Client::builder(CustomExecutor)
+        .build::<_, Full<Bytes>>(CustomConnector)
+        .request(req)
+        .await?;
+    Ok(client)
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let future_one = CounterFuture { count: 0 };
     let future_two = CounterFuture { count: 0 };
     let future_three = AsyncSleep::new(Duration::from_secs(5));
@@ -453,4 +551,19 @@ fn main() {
     let test = spawn_task!(future);
     let response = future::block_on(test);
     println!("Response status: {}", response.status());
+
+    let future = async {
+        let req = Request::get("https://www.rust-lang.org")
+            .body(Full::new("Rakudo Star".into()))
+            .unwrap();
+        let response = fetch(req).await.unwrap();
+        let body_bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8(body_bytes.to_vec()).unwrap();
+        println!("{}", html);
+    };
+
+    let test = spawn_task!(future);
+    let _outcome = future::block_on(test);
+
+    Ok(())
 }
