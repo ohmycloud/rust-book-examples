@@ -1,3 +1,5 @@
+use anyhow::{Context as _, Error, Result, bail};
+use async_native_tls::TlsStream;
 use async_task::{Runnable, Task};
 use bytes::Bytes;
 use flume::{Receiver, Sender};
@@ -6,13 +8,15 @@ use http::Uri;
 use http_body_util::Empty;
 use hyper::Request;
 use hyper_util::rt::TokioIo;
+use smol::{Async, io, prelude::*};
+use std::net::TcpStream;
+use std::net::ToSocketAddrs;
 use std::pin::Pin;
 use std::sync::LazyLock;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::time::Instant;
 use std::{future::Future, panic::catch_unwind, thread};
-use tokio::net::TcpStream;
 
 static HIGH_CHANNEL: LazyLock<(Sender<Runnable>, Receiver<Runnable>)> =
     LazyLock::new(|| flume::unbounded::<Runnable>());
@@ -272,6 +276,54 @@ where
     }
 }
 
+enum CustomStream {
+    Plain(Async<TcpStream>),
+    Tls(TlsStream<Async<TcpStream>>),
+}
+
+#[derive(Clone)]
+struct CustomConnector;
+
+impl hyper::service::Service<Uri> for CustomConnector {
+    type Response = CustomStream;
+    type Error = Error;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn call(&self, uri: Uri) -> Self::Future {
+        Box::pin(async move {
+            let host = uri.host().context("cannot parse host")?;
+            match uri.scheme_str() {
+                Some("http") => {
+                    let socket_addr = {
+                        let host = host.to_string();
+                        let port = uri.port_u16().unwrap_or(80);
+                        smol::unblock(move || (host.as_str(), port).to_socket_addrs())
+                            .await?
+                            .next()
+                            .context("cannot resolve address")?
+                    };
+                    let stream = Async::<TcpStream>::connect(socket_addr).await?;
+                    Ok(CustomStream::Plain(stream))
+                }
+                Some("https") => {
+                    let socket_addr = {
+                        let host = host.to_string();
+                        let port = uri.port_u16().unwrap_or(443);
+                        smol::unblock(move || (host.as_str(), port).to_socket_addrs())
+                            .await?
+                            .next()
+                            .context("cannot resolve address")?
+                    };
+                    let stream = Async::<TcpStream>::connect(socket_addr).await?;
+                    let stream = async_native_tls::connect(host, stream).await?;
+                    Ok(CustomStream::Tls(stream))
+                }
+                schema => bail!("unsupported schema: {:?}", schema),
+            }
+        })
+    }
+}
+
 fn main() {
     let future_one = CounterFuture { count: 0 };
     let future_two = CounterFuture { count: 0 };
@@ -331,7 +383,7 @@ fn main() {
 
     let future = async {
         // 创建 TCP 连接
-        let stream = TcpStream::connect(addr).await.unwrap();
+        let stream = tokio::net::TcpStream::connect(addr).await.unwrap();
         let io = TokioIo::new(stream);
         let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
         sender.send_request(request).await.unwrap()
