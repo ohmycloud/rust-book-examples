@@ -3,15 +3,16 @@ use bytes::Bytes;
 use flume::{Receiver, Sender};
 use futures_lite::future;
 use http::Uri;
-use http_body_util::{Empty, Full};
+use http_body_util::Empty;
 use hyper::Request;
-use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioIo;
 use std::pin::Pin;
 use std::sync::LazyLock;
 use std::task::{Context, Poll};
 use std::time::Duration;
 use std::time::Instant;
 use std::{future::Future, panic::catch_unwind, thread};
+use tokio::net::TcpStream;
 
 static HIGH_CHANNEL: LazyLock<(Sender<Runnable>, Receiver<Runnable>)> =
     LazyLock::new(|| flume::unbounded::<Runnable>());
@@ -255,6 +256,22 @@ impl Future for BackgroundProcess {
     }
 }
 
+struct CustomExecutor;
+
+impl<F> hyper::rt::Executor<F> for CustomExecutor
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    fn execute(&self, fut: F) {
+        spawn_task!(async {
+            println!("sending request");
+            fut.await;
+        })
+        .detach();
+    }
+}
+
 fn main() {
     let future_one = CounterFuture { count: 0 };
     let future_two = CounterFuture { count: 0 };
@@ -301,9 +318,26 @@ fn main() {
 
     let request = Request::builder()
         .method("GET")
-        .uri(uri)
+        .uri(&uri)
         .header("User-Agent", "hyper/1.5.2")
         .header("Accept", "text/html")
         .body(Empty::<Bytes>::new())
         .unwrap();
+
+    // 从 URI 获取连接信息
+    let host = uri.host().expect("uri has no host");
+    let port = uri.port_u16().unwrap_or(80);
+    let addr = format!("{}:{}", host, port);
+
+    let future = async {
+        // 创建 TCP 连接
+        let stream = TcpStream::connect(addr).await.unwrap();
+        let io = TokioIo::new(stream);
+        let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await.unwrap();
+        sender.send_request(request).await.unwrap()
+    };
+
+    let test = spawn_task!(future);
+    let response = future::block_on(test);
+    println!("Response status: {}", response.status());
 }
