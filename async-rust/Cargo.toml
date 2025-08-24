@@ -1,8 +1,13 @@
 [workspace]
 members = [
     "ch01-introduction-to-async",
-    "ch02-basic-async-rust", "ch03-building-async-queues", "ch04-integrating-networking",
+    "ch02-basic-async-rust",
+    "ch03-building-async-queues",
+    "ch04-integrating-networking",
     "ch05-coroutines",
-    "ch06-reactive-heater", "ch07-custom-tokio", "ch10-building-an-async-server",
+    "ch06-reactive-heater",
+    "ch07-custom-tokio",
+    "ch08-the-actor-model",
+    "ch10-building-an-async-server",
 ]
 resolver = "2"
