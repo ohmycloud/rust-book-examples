@@ -1,8 +1,13 @@
-use tokio::sync::mpsc::{Receiver, Sender, channel};
+use tokio::sync::mpsc::{Receiver, channel};
 use tokio::sync::oneshot;
 
 struct Message {
     value: i64,
+}
+
+struct RespMessage {
+    value: i64,
+    responder: oneshot::Sender<i64>,
 }
 
 async fn basic_actor(mut rx: Receiver<Message>) {
@@ -15,8 +20,18 @@ async fn basic_actor(mut rx: Receiver<Message>) {
     }
 }
 
-#[tokio::main]
-async fn main() {
+async fn resp_actor(mut rx: Receiver<RespMessage>) {
+    let mut state = 0;
+
+    while let Some(msg) = rx.recv().await {
+        state += msg.value;
+        if msg.responder.send(state).is_err() {
+            eprint!("Failed to send response");
+        }
+    }
+}
+
+async fn send_message() {
     let (tx, rx) = channel::<Message>(100);
 
     let _actor_handle = tokio::spawn(basic_actor(rx));
@@ -24,4 +39,28 @@ async fn main() {
         let msg = Message { value: i };
         tx.send(msg).await.unwrap();
     }
+}
+
+async fn oneshot_message() {
+    let (tx, rx) = channel::<RespMessage>(100);
+
+    let _resp_actor_handle = tokio::spawn(async {
+        resp_actor(rx).await;
+    });
+
+    for i in 0..10 {
+        let (resp_tx, resp_rx) = oneshot::channel::<i64>();
+        let msg = RespMessage {
+            value: i,
+            responder: resp_tx,
+        };
+        tx.send(msg).await.unwrap();
+        println!("Respoinse: {}", resp_rx.await.unwrap());
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    send_message().await;
+    oneshot_message().await;
 }
