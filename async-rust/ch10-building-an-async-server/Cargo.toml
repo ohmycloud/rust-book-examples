@@ -1,6 +1,4 @@
-[package]
-name = "ch10-building-an-async-server"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["client", "server", "data_layer", "async_runtime"]
 
-[dependencies]
+resolver = "2"
