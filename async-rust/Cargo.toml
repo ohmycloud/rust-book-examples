@@ -7,7 +7,7 @@ members = [
     "ch05-coroutines",
     "ch06-reactive-heater",
     "ch07-custom-tokio",
-    "ch08-the-actor-model",
+    "ch08-the-actor-model", "ch09-design-patterns",
     # "ch10-building-an-async-server",
 ]
 resolver = "2"

@@ -12,7 +12,7 @@ use hyper::body::Incoming;
 use hyper::{Request, Response};
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::TokioIo;
-use smol::{Async, io, prelude::*};
+use smol::{Async, prelude::*};
 use std::net::TcpStream;
 use std::net::ToSocketAddrs;
 use std::pin::Pin;
