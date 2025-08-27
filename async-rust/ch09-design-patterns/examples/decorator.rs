@@ -34,6 +34,8 @@ impl<T> ExcitedGreeting<T> {
 fn main() {
     let raw_one = HelloWorld;
     let raw_two = HelloWorld;
+
+    #[cfg(feature = "logging_decorator")]
     let decorated = ExcitedGreeting { inner: raw_two };
     println!("{}", raw_one.greet());
     println!("{}", decorated.greet());
