@@ -41,7 +41,7 @@ struct StateFuture<F: Future, X: Future> {
 impl<F: Future, X: Future> Future for StateFuture<F, X> {
     type Output = State;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.state {
             State::On => {
                 let inner = unsafe { self.map_unchecked_mut(|s| &mut s.on_future) };
