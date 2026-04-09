@@ -102,10 +102,12 @@ fn embedding_build_metadata() {
     }
 
     // embed build timestamp for report correlation
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_else(|_| "0".to_string());
+    let timestamp = std::env::var("SOURCE_DATE_EPOCH").unwrap_or_else(|_| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs().to_string())
+            .unwrap_or_else(|_| "0".to_string())
+    });
     println!("cargo::rustc-env=APP_BUILD_EPOCH={timestamp}");
 
     // Build profile (debug or release)
