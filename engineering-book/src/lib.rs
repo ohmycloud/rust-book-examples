@@ -1,5 +1,7 @@
 mod version;
 
+pub use version::BuildInfo;
+
 // src/lib.rs - include the generated code
 // OUT_DIR is a Cargo-provided directory where build scripts should place generated files.
 // Each crate gets its own OUT_DIR under target/.

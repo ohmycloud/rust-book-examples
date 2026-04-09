@@ -3,6 +3,9 @@ use std::process::Command;
 fn main() {
     minimal_example();
     compile_time_constants();
+    protobuf_compile();
+    embedding_build_metadata();
+    feature_detection_and_conditional_compile();
 }
 
 fn minimal_example() {
@@ -48,17 +51,6 @@ fn compile_time_constants() {
     // Target triple
     let target = std::env::var("TARGET").unwrap_or_else(|_| "unknown".into());
     println!("cargo::rustc-env=BUILD_TARGET={target}");
-}
-
-fn print_version() {
-    println!(
-        "{} {} (git:{} target:{} profile:{})",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        env!("GIT_COMMIT_HASH"),
-        env!("BUILD_TARGET"),
-        env!("BUILD_PROFILE")
-    )
 }
 
 fn protobuf_compile() {
@@ -116,7 +108,11 @@ fn embedding_build_metadata() {
         .unwrap_or_else(|_| "0".to_string());
     println!("cargo::rustc-env=APP_BUILD_EPOCH={timestamp}");
 
+    // Build profile (debug or release)
+    let profile = std::env::var("PROFILE").unwrap_or_else(|_| "unknown".into());
+    println!("cargo::rustc-env=APP_BUILD_PROFILE={profile}");
+
     // emit target triple - useful in multi-arch deployment
     let target = std::env::var("TARGET").unwrap_or_else(|_| "unknown".into());
-    println!("cargo::rustc-env=APP_TARGET={target}");
+    println!("cargo::rustc-env=APP_BUILD_TARGET={target}");
 }
