@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package diagnostics;
+
+message DiagnosticsReport {
+  string component_name = 1; // 组件名称，如 "engine", "network"
+  uint32 error_code     = 2; // 错误码，0 表示正常
+  string message        = 3; // 诊断描述信息
+}

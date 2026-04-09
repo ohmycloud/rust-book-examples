@@ -1,0 +1,10 @@
+// telemetry.proto
+syntax = "proto3";
+
+package telemetry;
+
+message TelemetryEvent {
+  string event_id        = 1; // 事件唯一标识，如 UUID
+  int64  timestamp_ms    = 2; // 事件发生时间，Unix 毫秒时间戳
+  double metric_value    = 3; // 采集到的指标数值，如 CPU 使用率
+}
