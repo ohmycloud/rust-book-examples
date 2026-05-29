@@ -1,4 +1,4 @@
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 /// Data type for parsed GPU information
 #[derive(Debug, Clone, PartialEq)]

@@ -16,3 +16,8 @@ criterion = { version = "0.5", features = ["html_reports", "cargo_bench_support"
 name = "parsing_bench"
 path = "benches/parsing_bench.rs"
 harness = false # Use Criterion's harness, not the built-in test harness
+
+[[bench]]
+name = "comparison_bench"
+path = "benches/comparison_bench.rs"
+harness = false # Use Criterion's harness, not the built-in test harness

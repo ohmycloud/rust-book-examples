@@ -52,6 +52,8 @@ fn broken<T>(val: T) {
 fn fixed<T: std::fmt::Display>(val: T) {
     println!("{val}"); // ✅
 }
+
+fixed("Rakudo Star");
 ```
 
 ### When Generics Hurt: Code Bloat
@@ -174,6 +176,7 @@ Since Rust 1.51, you can parameterize types and functions over *constant values*
 
 ```rust
 // Array wrapper parameterized over size
+#[derive(Debug)]
 struct Matrix<const ROWS: usize, const COLS: usize> {
     data: [[f64; COLS]; ROWS],
 }
@@ -214,9 +217,10 @@ fn multiply<const M: usize, const N: usize, const P: usize>(
 let a = Matrix::<2, 3>::new(); // 2×3
 let b = Matrix::<3, 4>::new(); // 3×4
 let c = multiply(&a, &b);      // 2×4 ✅
+println!("{:?}", c);
 
-// let d = Matrix::<5, 5>::new();
-// multiply(&a, &d); // ❌ Compile error: expected Matrix<3, _>, got Matrix<5, 5>
+let d = Matrix::<5, 5>::new();
+multiply(&a, &d); // ❌ Compile error: expected Matrix<3, _>, got Matrix<5, 5>
 ```
 
 > **C++ comparison**: This is similar to `template<int N>` in C++, but Rust
@@ -295,7 +299,7 @@ const fn checked_div(a: u32, b: u32) -> u32 {
 }
 
 const RESULT: u32 = checked_div(100, 4);  // ✅ 25
-// const BAD: u32 = checked_div(100, 0);  // ❌ Compile error: "division by zero"
+const BAD: u32 = checked_div(100, 0);  // ❌ Compile error: "division by zero"
 ```
 
 > **C++ comparison**: `const fn` is Rust's `constexpr`. The key difference:
