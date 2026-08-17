@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 trait Operand {
     fn evaluate(&self) -> f64;
 }
@@ -38,6 +40,20 @@ impl AdditionOperator {
     }
 }
 
+impl Deref for AdditionOperator {
+    type Target = OperandStack;
+
+    fn deref(&self) -> &Self::Target {
+        &self.stack
+    }
+}
+
+impl DerefMut for AdditionOperator {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.stack
+    }
+}
+
 struct Value(f64);
 
 impl Operand for Value {
@@ -49,7 +65,7 @@ impl Operand for Value {
 fn main() {
     let value = Value(4.0);
     let mut addition_operator = AdditionOperator::new();
-    addition_operator.stack.push_operand(Box::new(value));
-    let popped_operator = addition_operator.stack.pop_operand();
+    addition_operator.push_operand(Box::new(value));
+    let popped_operator = addition_operator.pop_operand();
     println!("{:?}", popped_operator.evaluate());
 }
