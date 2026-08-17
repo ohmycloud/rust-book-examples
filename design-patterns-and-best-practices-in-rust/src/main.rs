@@ -1,7 +1,5 @@
 use std::io::Read;
 
-mod calculator;
-
 fn main() {
     println!("Hello, world!");
 }
