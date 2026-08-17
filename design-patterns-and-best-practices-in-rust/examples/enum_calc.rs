@@ -6,12 +6,24 @@ impl Value {
     }
 }
 
+enum Operand {
+    Value(f64),
+}
+
+impl Operand {
+    fn evaluate(&self) -> f64 {
+        match self {
+            Operand::Value(v) => *v,
+        }
+    }
+}
+
 enum Operator {
-    Addition { lhs: Value, rhs: Value },
-    Subtraction { lhs: Value, rhs: Value },
-    Multiplication { lhs: Value, rhs: Value },
-    Division { lhs: Value, rhs: Value },
-    Negation { operand: Value },
+    Addition { lhs: Operand, rhs: Operand },
+    Subtraction { lhs: Operand, rhs: Operand },
+    Multiplication { lhs: Operand, rhs: Operand },
+    Division { lhs: Operand, rhs: Operand },
+    Negation { operand: Operand },
 }
 
 impl Operator {
@@ -28,11 +40,9 @@ impl Operator {
 
     fn precedence(&self) -> u8 {
         match self {
-            Operator::Addition { lhs, rhs } => todo!(),
-            Operator::Subtraction { lhs, rhs } => todo!(),
-            Operator::Multiplication { lhs, rhs } => todo!(),
-            Operator::Division { lhs, rhs } => todo!(),
-            Operator::Negation { operand } => todo!(),
+            Operator::Addition { .. } | Operator::Subtraction { .. } => 0,
+            Operator::Multiplication { .. } | Operator::Division { .. } => 1,
+            Operator::Negation { .. } => 2,
         }
     }
     fn symbol(&self) -> char {
@@ -48,15 +58,15 @@ impl Operator {
 
 fn main() {
     let addition = Operator::Addition {
-        lhs: Value(2.0),
-        rhs: Value(3.0),
+        lhs: Operand::Value(2.0),
+        rhs: Operand::Value(3.0),
     };
     let subtraction = Operator::Subtraction {
-        lhs: Value(5.0),
-        rhs: Value(1.0),
+        lhs: Operand::Value(5.0),
+        rhs: Operand::Value(1.0),
     };
     let negation = Operator::Negation {
-        operand: Value(-7.0),
+        operand: Operand::Value(-7.0),
     };
 
     println!("Addition result: {}", addition.apply().evaluate());
