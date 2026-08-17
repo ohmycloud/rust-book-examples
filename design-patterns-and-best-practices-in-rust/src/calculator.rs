@@ -29,6 +29,15 @@ trait BinaryOperator: Operator {
     }
 }
 
+struct Value(f64);
+
+impl Operand for Value {
+    fn evaluate(&self) -> f64 {
+        self.0
+    }
+}
+
+// 加法
 struct AdditionOperator {
     stack: Vec<Box<dyn Operand>>,
 }
@@ -63,10 +72,18 @@ impl Operator for AdditionOperator {
     }
 }
 
-struct Value(f64);
+struct OperandStack(Vec<Box<dyn Operand>>);
 
-impl Operand for Value {
-    fn evaluate(&self) -> f64 {
-        self.0
+impl OperandStack {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn push_operand(&mut self, operand: Box<dyn Operand>) {
+        self.0.push(operand);
+    }
+
+    fn pop_operand(&mut self) -> Box<dyn Operand> {
+        self.0.pop().unwrap()
     }
 }
